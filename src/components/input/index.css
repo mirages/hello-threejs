@@ -1,0 +1,23 @@
+.input {
+  height: 46px;
+  width: 100%;
+
+  font-size: 16px;
+  color: #333;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+.input:hover:not(.input--disabled) {
+  border-color: #8091f1;
+}
+
+.input--focus {
+  border-color: #3f59ec !important;
+}
+
+.input--disabled {
+  color: #aaa;
+  background: #ddd;
+}
