@@ -1,69 +1,200 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { initTrackballControls } from './utils/index'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import './index.css'
 
-import Modal from './components/modal'
-import Button from './components/button'
-import Input from './components/input'
-
 class App extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = {
-      input: 'input',
-      selected: 'a',
-      modal: false
+  camera = null
+  scene = null
+  renderer = null
+  controls = null
+
+  createRenderer () {
+    const renderer = new THREE.WebGLRenderer({antialias: true})
+  
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    renderer.setClearColor( 0xcccccc );
+    renderer.shadowMap.enabled = true
+    document.body.appendChild(renderer.domElement)
+
+    this.renderer = renderer
+  }
+
+  createCamera () {
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.01, 1000)
+
+    camera.position.set(40, 10, 40)
+
+    function onResize () {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
+    window.addEventListener('resize', onResize, false)
+
+    this.camera = camera
+    this.scene.add(camera)
+
+    const helper = new THREE.CameraHelper( camera );
+    this.scene.add( helper );
   }
 
-  handleInputChange = e => {
-    console.log('input 事件', e)
-    this.setState({
-      input: e.target.value
-    })
+  createScene () {
+    this.scene = new THREE.Scene()
+
+    this.scene.background = new THREE.Color(0xcccccc)
+    // AxesHelper: x red, y green, z blue
+    const axes = new THREE.AxesHelper(100)
+    axes.position.set(0, 0, 0)
+    this.scene.add(axes)
   }
 
-  handleSelectChange = e => {
-    console.log('select 事件', e)
-    this.setState({
-      selected: e.target.value
-    })
+  createControls () {
+    const controls = new OrbitControls(this.camera, this.renderer.domElement)
+
+    controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+    controls.dampingFactor = 0.05;
+    // controls.autoRotate = true
+    // controls.enabled = false
+
+    controls.screenSpacePanning = false;
+
+    controls.minDistance = 5;
+    controls.maxDistance = 300;
+
+    controls.maxPolarAngle = Math.PI / 2.01;
+
+    controls.update()
+    this.controls = controls
   }
 
-  toggleModal = () => {
-    this.setState({
-      modal: !this.state.modal
-    })
+  addPlane () {
+    var textureGrass = new THREE.TextureLoader().load("/textures/ground/grasslight-big.jpg");
+    textureGrass.wrapS = THREE.RepeatWrapping;
+    textureGrass.wrapT = THREE.RepeatWrapping;
+    textureGrass.repeat.set(10, 10);
+
+    var planeGeometry = new THREE.PlaneGeometry(500, 500, 20, 20);
+    var planeMaterial = new THREE.MeshLambertMaterial({
+      map: textureGrass
+    });
+    var plane = new THREE.Mesh(planeGeometry, planeMaterial);
+    plane.receiveShadow = true;
+
+    // rotate and position the plane
+    plane.rotation.x = -0.5 * Math.PI;
+    plane.position.x = 0;
+    plane.position.y = 0;
+    plane.position.z = 0;
+
+    // add the plane to the scene
+    this.scene.add(plane);
+  }
+
+  addCube () {
+    // create a cube
+    var cubeGeometry = new THREE.BoxGeometry(4, 4, 4);
+    var cubeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xFF0000
+    });
+    var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+
+    // position the cube
+    cube.position.set(-60, 3, 10);
+
+    // add the cube to the scene
+    this.scene.add(cube);
+  }
+
+  addLights () {
+    const ambienLight = new THREE.AmbientLight(0xffffff, .8)
+    this.scene.add(ambienLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(20, 0, 35);
+    this.scene.add(dirLight);
+    const dirLightHelper = new THREE.DirectionalLightHelper( dirLight, 15 );
+    this.scene.add( dirLightHelper );
+
+    // add spotlight for the shadows
+    const spotLight = new THREE.SpotLight(0xffffff, 1, 500, Math.PI / 4);
+    spotLight.shadow.mapSize.set(2048, 2048);
+    spotLight.position.set(10, 10, 10);
+    spotLight.castShadow = true;
+    this.scene.add(spotLight);
+    // spotLightHelper
+    const spotLightHelper = new THREE.SpotLightHelper( spotLight );
+    this.scene.add( spotLightHelper );
+  }
+
+  addWorkerModel () {
+    const loader = new GLTFLoader()
+    const scene = this.scene
+  
+    loader.load(
+      '/model/worker.gltf',
+      function onLoad (mesh) {
+        console.log(mesh)
+  
+        const sceneGroup = mesh.scene
+
+        sceneGroup.traverse(node => {
+          if (node.isMesh) {
+            node.castShadow = true
+          }
+        })
+        sceneGroup.scale.set(0.1, 0.1, 0.1)
+        sceneGroup.position.set(0, 0, 10)
+  
+        // spotLight.target = new THREE.Object3D()
+        scene.add(sceneGroup)
+      },
+      function onProcess (data) {
+        console.log('process', data)
+      },
+      function onError (err) {
+        console.log('error', err)
+      }
+    )
+  }
+
+  init () {
+    this.createRenderer()
+    this.createScene()
+    this.createCamera()
+  
+    this.createControls()
+  
+    this.addLights()
+    this.addPlane()
+    this.addWorkerModel()
+    this.addCube()
+  
+    // const hemiLight = new THREE.HemisphereLight(0x0000ff, 0x00ff00, 0.6);
+    // hemiLight.position.set(0, 500, 0);
+    // scene.add(hemiLight)
+  
+    const animate = () => {
+      requestAnimationFrame(animate)
+  
+      this.controls.update()
+      this.renderer.render(this.scene, this.camera)
+    }
+  
+    animate()
+  }
+
+  componentDidMount() {
+    this.init()
   }
 
   render () {
     console.log('app render')
-    const { input, selected, modal } = this.state
     return (
-      <div>
-        <p>input onchange 事件: {input}</p>
-        <Input value={input} onChange={this.handleInputChange} />
-        <Input disabled value='禁用该输入框' onChange={this.handleInputChange} />
-        <p>select 标签使用 value 属性选中某个 option: {selected}</p>
-        <select value={selected} onChange={this.handleSelectChange}>
-          <option name='a'>a</option>
-          <option name='b'>b</option>
-          <option name='c'>c</option>
-          <option name='d'>d</option>
-        </select>
-
-        <p tabIndex={1} onFocus={e => console.log('focus', e)}>按钮：</p>
-        <Button disabled>禁用状态</Button>
-        <Button onClick={this.toggleModal}>显示弹窗</Button>
-
-        <Modal show={modal} onClose={this.toggleModal}>
-          <div className='modal-app'>
-            <p className='modal-app__title'>标题</p>
-            <div className='modal-app__content'>
-              <p>这是弹窗内容</p>
-            </div>
-          </div>
-        </Modal>
+      <div id="app">
       </div>
     )
   }
